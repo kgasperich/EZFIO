@@ -247,6 +247,142 @@ subroutine ezfio_write_array_%(type_short)s(dir,fil,rank,dims,dim_max,dat)
 end
 """
 
+template_complex = """
+subroutine ezfio_read_%(type_short)s(dir,fil,dat)
+  implicit none
+  BEGIN_DOC
+! Reads a %(type_short)s
+  END_DOC
+  character*(*), intent(in)      :: dir, fil
+  %(type)s, intent(out)          :: dat
+  double precision :: dat_real, dat_imag
+  character*(1024)               :: l_filename
+  l_filename=trim(dir)//'/'//fil
+  open(unit=libezfio_iunit,file=l_filename,form='FORMATTED',         &
+      action='READ',err=9)
+  read(libezfio_iunit,%(fmt)s,end=9,err=9) dat_real, dat_imag
+  close(libezfio_iunit)
+  dat=dcmplx(dat_real,dat_imag)
+  return
+9 continue
+  call ezfio_error(irp_here,'Attribute '//trim(dir)//'/'//trim(fil)//' is not set')
+end
+
+subroutine ezfio_write_%(type_short)s(dir,fil,dat)
+  implicit none
+  BEGIN_DOC
+! Writes a %(type_short)s
+  END_DOC
+  character*(*), intent(in)      :: dir, fil
+  %(type)s, intent(in)           :: dat
+  character*(1024)               :: l_filename(2)
+  if (libezfio_read_only) then
+    call ezfio_error(irp_here,'Read-only file.')
+  endif
+  l_filename(1)=trim(dir)//'/.'//fil//'.'//trim(PID_str)
+  l_filename(2)=trim(dir)//'/'//fil
+  open(unit=libezfio_iunit,file=l_filename(1),form='FORMATTED',action='WRITE')
+  write(libezfio_iunit,%(fmt)s) dat
+  close(libezfio_iunit)
+  call system( 'mv -f '//trim(l_filename(1))//' '//trim(l_filename(2)) )
+end
+
+subroutine ezfio_read_array_%(type_short)s(dir,fil,rank,dims,dim_max,dat)
+  implicit none
+  BEGIN_DOC
+! Reads a %(type_short)s array
+  END_DOC
+  character*(*), intent(in)      :: dir, fil
+  integer                        :: rank
+  integer                        :: dims(rank)
+  integer                        :: dim_max
+  %(type)s                       :: dat(dim_max)
+  integer                        :: err
+  character*(1024)               :: l_filename
+  character*(64), allocatable    :: buffer(:)
+  l_filename=trim(dir)//'/'//fil//'.gz'
+  
+  err = 0
+  call libezfio_openz(trim(l_filename),'rb',err)
+  if (err == 0) then
+    integer                        :: rank_read
+    integer                        :: dims_read(rank), i
+    double precision :: dat_real, dat_imag
+    
+    read(libezfio_iunit,'(I3)') rank_read
+    if (rank_read /= rank) then
+      call ezfio_error(irp_here,'Rank of data '//trim(l_filename)//  &
+          ' different from array.')
+    endif
+    
+    if (err /= 0) then
+      call ezfio_error(irp_here,'Error reading data in '//trim(l_filename)//&
+          '.')
+    endif
+    read(libezfio_iunit,'(30(I20,X))') dims_read(1:rank)
+    do i=1,rank
+      if (dims_read(i) /= dims(i)) then
+        call ezfio_error(irp_here,'Dimensions of data '//trim(l_filename)//&
+            ' different from array.')
+      endif
+    enddo
+    
+    allocate (buffer(dim_max))
+    read(libezfio_iunit,'(A)') buffer(1:dim_max)
+    !$OMP PARALLEL DO PRIVATE(i)
+    do i=1,dim_max
+      read(buffer(i),%(fmt)s) dat_real, dat_imag
+      dat(i)=dcmplx(dat_real,dat_imag)
+    enddo
+    !$OMP END PARALLEL DO
+    deallocate(buffer)
+    call libezfio_closez(trim(l_filename),'r')
+    return
+  else
+    call ezfio_error(irp_here,'Attribute '//trim(l_filename)//' is not set')
+  endif
+end
+
+subroutine ezfio_write_array_%(type_short)s(dir,fil,rank,dims,dim_max,dat)
+  implicit none
+  BEGIN_DOC
+! Writes a %(type_short)s array
+  END_DOC
+  character*(*), intent(in)      :: dir, fil
+  integer, intent(in)            :: rank
+  integer, intent(in)            :: dims(rank)
+  integer, intent(in)            :: dim_max
+  %(type)s, intent(in)           :: dat(dim_max)
+  integer                        :: err
+  integer                        :: i
+  character*(1024)               :: l_filename(2)
+  character*(64), allocatable    :: buffer(:)
+  if (libezfio_read_only) then
+    call ezfio_error(irp_here,'Read-only file.')
+  endif
+  l_filename(1)=trim(dir)//'/.'//fil//trim(PID_str)//'.gz'
+  l_filename(2)=trim(dir)//'/'//fil//'.gz'
+  
+  err = 0
+  call libezfio_openz(trim(l_filename(1)),'wb',err)
+  if (err == 0) then
+    write(libezfio_iunit,'(I3)') rank
+    write(libezfio_iunit,'(30(I20,X))') dims(1:rank)
+    
+    allocate (buffer(dim_max))
+    !$OMP PARALLEL DO PRIVATE(i)
+    do i=1,dim_max
+      write(buffer(i), %(fmt)s) dat(i)
+    enddo
+    !$OMP END PARALLEL DO
+    write(libezfio_iunit,'(A)') buffer(1:dim_max)
+    deallocate(buffer)
+    call libezfio_closez(trim(l_filename(1)),'w')
+  endif
+  call system( 'mv -f '//trim(l_filename(1))//' '//trim(l_filename(2)) )
+end
+"""
+
 template_no_logical = """
 integer function n_count_%(type_short)s(array,isize,val)
   implicit none
@@ -269,7 +405,10 @@ end function
 ! Build Python functions
 """
 for t in format.keys():
-  print template%{ 'type_short' : t_short(t), 'type' : t, 'fmt':format[t][0] }
+  if t == "complex*16":
+    print template_complex%{ 'type_short' : t_short(t), 'type' : t, 'fmt':format[t][0] }
+  else:
+    print template%{ 'type_short' : t_short(t), 'type' : t, 'fmt':format[t][0] }
   if t != "logical":
     print template_no_logical%{ 'type_short' : t_short(t), 'type' : t, 'fmt':format[t][0] }
 

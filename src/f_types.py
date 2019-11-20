@@ -28,7 +28,8 @@ format= {
  'real'            : ["'(E24.15)'","%24.15E"],
  'double precision': ["'(E24.15)'","%24.15E"],
  'logical'         : ["'(L)'","%c"],
- 'character*(*)'   : ["'(A)'","%s"]
+ 'character*(*)'   : ["'(A)'","%s"],
+ 'complex*16'     : ["'(E24.15,E24.15)'", "%24.15E"]
  }
 
 def t_short(x):
@@ -45,6 +46,8 @@ def t_short(x):
     return 'lo'
   elif x.startswith('character'):
     return 'ch'
+  elif x == 'complex*16':
+    return 'cd'
 
 f2c = {
 'in' : 'int',
