@@ -55,7 +55,8 @@ f2c = {
 'i8' : 'long int',
 'do' : 'double',
 'ch' : 'char',
-'lo' : 'int'
+'lo' : 'int',
+'cd' : 'Complex<double>'
 }
 
 f2ocaml = {
@@ -64,5 +65,6 @@ f2ocaml = {
 'i8' : 'int64',
 'do' : 'float',
 'ch' : 'string',
-'lo' : 'bool'
+'lo' : 'bool',
+'cd' : 'float'
 }
