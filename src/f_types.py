@@ -29,7 +29,7 @@ format= {
  'double precision': ["'(E24.15)'","%24.15E"],
  'logical'         : ["'(L)'","%c"],
  'character*(*)'   : ["'(A)'","%s"],
- 'complex*16'     : ["'(E24.15,E24.15)'", "%24.15E"]
+ 'complex*16'     : ["'(E24.15,E24.15)'", ""] # Will not work in Python. Just a Placeholder
  }
 
 def t_short(x):
@@ -56,7 +56,7 @@ f2c = {
 'do' : 'double',
 'ch' : 'char',
 'lo' : 'int',
-'cd' : 'Complex<double>'
+'cd' : 'Complex<double>'# Warning! This is not a native C type. You will need to load Complex header file in your C/C++ program
 }
 
 f2ocaml = {
@@ -66,5 +66,5 @@ f2ocaml = {
 'do' : 'float',
 'ch' : 'string',
 'lo' : 'bool',
-'cd' : 'float'
+'cd' : 'bool' # Warning! Just a workaround for QP ei_handler.  
 }
