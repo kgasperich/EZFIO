@@ -329,7 +329,7 @@ subroutine ezfio_read_array_%(type_short)s(dir,fil,rank,dims,dim_max,dat)
     
     allocate (buffer(dim_max))
     read(libezfio_iunit,'(A)') buffer(1:dim_max)
-    !$OMP PARALLEL DO PRIVATE(i)
+    !$OMP PARALLEL DO PRIVATE(i,dat_real,dat_imag)
     do i=1,dim_max
       read(buffer(i),%(fmt)s) dat_real, dat_imag
       dat(i)=dcmplx(dat_real,dat_imag)
